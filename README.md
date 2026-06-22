@@ -1,4 +1,4 @@
-# jd-nsu_TETRA
+# jd_nsu_TETRA
 # Junior Design Project | Team TETRA
 
 ## Course Details
