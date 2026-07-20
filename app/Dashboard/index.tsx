@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,39 +8,80 @@ import {
   Dimensions,
   Platform,
   SafeAreaView,
-  ImageBackground,
+  TextInput,
+  Animated,
+  StatusBar,
+  Modal,
+  Image,
+  ActivityIndicator,
+  Alert,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Logo } from '@/components/Logo';
-import RemindersScreen from './reminders';
+import ReportsScreen from './ReportsScreen';
+import AvailableHospitalsScreen from './AvailableHospitalsScreen';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
+const isTablet = width >= 768 && width < 1024;
 
-// ---------- Reminder Type (matches reminders.tsx) ----------
+const getCurrentUserId = (): number => {
+  try {
+    const currentUser = (globalThis as any).__AMARCURE_USER__;
+
+    if (currentUser?.id) {
+      return Number(currentUser.id);
+    }
+
+    if (isWeb && typeof window !== 'undefined') {
+      const savedUser = window.localStorage.getItem('amarcure_user');
+
+      if (savedUser) {
+        const parsedUser = JSON.parse(savedUser);
+
+        if (parsedUser?.id) {
+          return Number(parsedUser.id);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to read current user:', error);
+  }
+
+  return 0;
+};
+
+// ---------- Types ----------
 interface Reminder {
   id: string;
   medicineName: string;
-  dayPeriod: 'morning' | 'noon' | 'night';
-  timing: 'before-meal' | 'after-meal';
-  timesPerDay: number;      // user-defined (1-10)
-  durationDays: number;     // user-defined
   takenToday: boolean;
-  startDate: Date;
-  nextNotifyTime: Date | null;
+  dayPeriod: 'morning' | 'noon' | 'night';
+}
+
+interface Appointment {
+  id: string;
+  doctorName: string;
+  hospital: string;
+  date: Date;
+  time: string;
 }
 
 // ---------- Menu Items ----------
 const menuItems = [
   { id: 'dashboard', icon: 'grid-outline', label: 'Dashboard' },
+  { id: 'blood-search', icon: 'search-circle-outline', label: 'Search Blood' },
   { id: 'reports', icon: 'document-text-outline', label: 'My Reports' },
   { id: 'profile', icon: 'person-outline', label: 'Profile' },
   { id: 'family', icon: 'people-outline', label: 'Family' },
   { id: 'reminders', icon: 'notifications-outline', label: 'Reminders' },
   { id: 'appointments', icon: 'calendar-outline', label: 'Appointments' },
-  { id: 'ai-insights', icon: 'bulb-outline', label: 'AI Health Insights' },
+  { id: 'ai-insights', icon: 'bulb-outline', label: 'AI Insights' },
+  { id: 'available-hospitals', icon: 'business-outline', label: 'Available Hospitals' },
 ];
 
 // ---------- Main Dashboard ----------
@@ -48,90 +89,198 @@ export default function Dashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(isWeb);
-  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // ---------- REAL DATA STATE (to be connected to child screens later) ----------
+  const [reminders, setReminders] = useState<Reminder[]>([
+    // Example: two pending reminders to show the notification
+    { id: '1', medicineName: 'Metformin', takenToday: false, dayPeriod: 'morning' },
+    { id: '2', medicineName: 'Lisinopril', takenToday: false, dayPeriod: 'noon' },
+  ]);
+  const [appointments, setAppointments] = useState<Appointment[]>([
+    {
+      id: '1',
+      doctorName: 'Dr. Sarah Ahmed',
+      hospital: 'City Hospital',
+      date: new Date(),
+      time: '3:30 PM',
+    },
+  ]);
+  const [bmi, setBmi] = useState(25.4); // example – will be calculated from real health data
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [activeTab]);
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
 
   const handleLogout = () => {
+    try {
+      delete (globalThis as any).__AMARCURE_USER__;
+
+      if (isWeb && typeof window !== 'undefined') {
+        window.localStorage.removeItem('amarcure_user');
+      }
+    } catch (error) {
+      console.error('Failed to clear current user:', error);
+    }
+
     router.replace('/login');
   };
 
-  // ----- Render content based on activeTab -----
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <DashboardHome reminders={reminders} setReminders={setReminders} setActiveTab={setActiveTab} />;
-      case 'reports':
-        return <ReportsScreen />;
+        return (
+          <DashboardHome
+            reminders={reminders}
+            appointments={appointments}
+            bmi={bmi}
+            setReminders={setReminders}
+            setAppointments={setAppointments}
+            setBmi={setBmi}
+            onNavigate={setActiveTab}
+          />
+        );
+      case 'blood-search':
+        return <PlaceholderScreen title="🩸 Search Blood" subtitle="Find blood banks, donors, and request blood tests" />;
+      case 'reports': {
+        const currentUserId = getCurrentUserId();
+
+        if (!currentUserId) {
+          return (
+            <PlaceholderScreen
+              title="🔒 Session Required"
+              subtitle="Please log in again before accessing your medical reports."
+            />
+          );
+        }
+
+        return <ReportsScreen userId={currentUserId} />;
+      }
       case 'profile':
-        return <ProfileScreen />;
+        return <PlaceholderScreen title="👤 Profile" subtitle="Manage your personal information" />;
       case 'family':
-        return <FamilyScreen />;
+        return <PlaceholderScreen title="👨‍👩‍👦 Family" subtitle="Manage your family members' health records" />;
       case 'reminders':
-        return <RemindersScreen reminders={reminders} setReminders={setReminders} />;
+        return <PlaceholderScreen title="⏰ Reminders" subtitle="Set and manage your medication reminders" />;
       case 'appointments':
-        return <AppointmentsScreen />;
+        return <PlaceholderScreen title="📅 Appointments" subtitle="View and book your doctor appointments" />;
       case 'ai-insights':
-        return <AIInsightsScreen />;
+        return <PlaceholderScreen title="🧠 AI Insights" subtitle="Get AI-powered analysis of your health data" />;
+      case 'available-hospitals':
+        return <AvailableHospitalsScreen />;
       default:
-        return <DashboardHome reminders={reminders} setReminders={setReminders} setActiveTab={setActiveTab} />;
+        return (
+          <DashboardHome
+            reminders={reminders}
+            appointments={appointments}
+            bmi={bmi}
+            setReminders={setReminders}
+            setAppointments={setAppointments}
+            setBmi={setBmi}
+            onNavigate={setActiveTab}
+          />
+        );
     }
   };
 
-  // ----- Sidebar -----
-  const Sidebar = () => (
-    <View style={[styles.sidebar, !sidebarOpen && styles.sidebarHidden]}>
-      <View style={styles.logoSection}>
-        <Logo size="small" showText={true} />
-        <Text style={styles.tagline}>Transforming Healthcare</Text>
-      </View>
+  const Sidebar = () => {
+    const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
-      <ScrollView style={styles.menu} showsVerticalScrollIndicator={false}>
-        {menuItems.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            style={[
-              styles.menuItem,
-              activeTab === item.id && styles.menuItemActive,
-            ]}
-            onPress={() => {
-              setActiveTab(item.id);
-              if (!isWeb) setSidebarOpen(false);
-            }}
-          >
-            <Ionicons
-              name={item.icon as any}
-              size={20}
-              color={activeTab === item.id ? '#ffffff' : '#94a3b8'}
+    return (
+      <View style={[styles.sidebar, !sidebarOpen && styles.sidebarHidden]}>
+        <BlurView intensity={isWeb ? 0 : 80} tint="dark" style={styles.sidebarBlur}>
+          <View style={styles.logoSection}>
+            <Logo size="small" showText={true} />
+            <Text style={styles.tagline}>Transforming Healthcare</Text>
+          </View>
+
+          <View style={styles.sidebarSearch}>
+            <Ionicons name="search-outline" size={16} color="#64748b" />
+            <TextInput
+              style={styles.sidebarSearchInput}
+              placeholder="Search..."
+              placeholderTextColor="#64748b"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
             />
-            <Text
-              style={[
-                styles.menuLabel,
-                activeTab === item.id && styles.menuLabelActive,
-              ]}
-            >
-              {item.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+          </View>
 
-      <View style={styles.bottomSection}>
-        <View style={styles.connectedStatus}>
-          <View style={styles.statusDot} />
-          <Text style={styles.statusText}>Connected</Text>
-        </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={20} color="#ef4444" />
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+          <ScrollView style={styles.menu} showsVerticalScrollIndicator={false}>
+            {menuItems.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[
+                  styles.menuItem,
+                  activeTab === item.id && styles.menuItemActive,
+                  hoveredItem === item.id && styles.menuItemHover,
+                ]}
+                onPress={() => {
+                  setActiveTab(item.id);
+                  if (!isWeb) setSidebarOpen(false);
+                }}
+                onMouseEnter={() => setHoveredItem(item.id)}
+                onMouseLeave={() => setHoveredItem(null)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.menuIconWrapper}>
+                  <Ionicons
+                    name={item.icon as any}
+                    size={20}
+                    color={activeTab === item.id ? '#ffffff' : '#94a3b8'}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.menuLabel,
+                    activeTab === item.id && styles.menuLabelActive,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+                {activeTab === item.id && <View style={styles.menuActiveDot} />}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <View style={styles.bottomSection}>
+            <View style={styles.userProfile}>
+              <View style={styles.userAvatar}>
+                <Text style={styles.userAvatarText}>T</Text>
+              </View>
+              <View style={styles.userInfo}>
+                <Text style={styles.userName}>Tanvir Ahmed</Text>
+                <Text style={styles.userRole}>Patient</Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+              <Ionicons name="log-out-outline" size={18} color="#ef4444" />
+              <Text style={styles.logoutText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+        </BlurView>
       </View>
-    </View>
-  );
+    );
+  };
 
-  // ----- Main Layout -----
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#0b1a3a" />
       <View style={styles.layout}>
         {isWeb ? (
           <Sidebar />
@@ -144,193 +293,486 @@ export default function Dashboard() {
                 activeOpacity={1}
               />
             )}
-            <View style={[styles.sidebarMobile, sidebarOpen && styles.sidebarMobileOpen]}>
+            <Animated.View style={[styles.sidebarMobile, sidebarOpen && styles.sidebarMobileOpen]}>
               <Sidebar />
-            </View>
+            </Animated.View>
           </>
         )}
 
-        <View style={[styles.mainContent, !sidebarOpen && styles.mainContentFull]}>
+        <Animated.View
+          style={[
+            styles.mainContent,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
           {!isWeb && (
             <View style={styles.mobileHeader}>
               <TouchableOpacity onPress={toggleSidebar} style={styles.menuToggle}>
                 <Ionicons name="menu-outline" size={28} color="#ffffff" />
               </TouchableOpacity>
               <Text style={styles.mobileHeaderTitle}>AmarCure</Text>
-              <View style={{ width: 40 }} />
+              <TouchableOpacity style={styles.headerNotification}>
+                <Ionicons name="notifications-outline" size={24} color="#ffffff" />
+                <View style={styles.notificationDot} />
+              </TouchableOpacity>
             </View>
           )}
 
-          <ImageBackground
-            source={{ uri: 'https://images.unsplash.com/photo-1631815589963-0de0b7a9ea4d?w=1200&q=80' }}
-            style={styles.backgroundImage}
-            imageStyle={{ resizeMode: 'cover' }}
-          >
-            <BlurView intensity={20} tint="light" style={StyleSheet.absoluteFill} />
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={styles.whiteBackground}>
+            <ScrollView
+              style={styles.content}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.contentContainer}
+            >
               {renderContent()}
             </ScrollView>
-          </ImageBackground>
-        </View>
+          </View>
+        </Animated.View>
       </View>
     </SafeAreaView>
   );
 }
 
-// ---------- Dashboard Home (with enhanced reminders preview) ----------
-function DashboardHome({
+// ===== REPORTS SCREEN =====
+// ===== PLACEHOLDER SCREEN =====
+function PlaceholderScreen({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <View style={styles.placeholderContainer}>
+      <View style={styles.placeholderCard}>
+        <Text style={styles.placeholderTitle}>{title}</Text>
+        <Text style={styles.placeholderSubtitle}>{subtitle}</Text>
+        <View style={styles.placeholderIcon}>
+          <Ionicons name="construct-outline" size={48} color="#CBD5E1" />
+        </View>
+        <Text style={styles.placeholderText}>This screen will be created separately</Text>
+        <Text style={styles.placeholderHint}>Create a new file for this module</Text>
+      </View>
+    </View>
+  );
+}
+
+// ===== DYNAMIC NOTIFICATION BOX =====
+function NotificationBox({
   reminders,
-  setReminders,
-  setActiveTab,
+  appointments,
+  bmi,
 }: {
   reminders: Reminder[];
-  setReminders: React.Dispatch<React.SetStateAction<Reminder[]>>;
-  setActiveTab: React.Dispatch<React.SetStateAction<string>>;
+  appointments: Appointment[];
+  bmi: number;
 }) {
+  const [dismissed, setDismissed] = useState<string[]>([]);
+
+  // Build notifications based on real data
   const pendingReminders = reminders.filter((r) => !r.takenToday);
+  const upcomingAppointments = appointments.filter(
+    (a) => a.date.toDateString() === new Date().toDateString()
+  );
+  const isBmiOverweight = bmi > 25;
+
+  const notifications = [];
+
+  if (pendingReminders.length > 0) {
+    notifications.push({
+      id: 'reminder',
+      icon: 'notifications-outline',
+      title: `${pendingReminders.length} Medication Reminder${pendingReminders.length > 1 ? 's' : ''} Pending`,
+      desc: pendingReminders.map((r) => r.medicineName).join(' • '),
+      color: '#D97706',
+      bg: '#FFFBEB',
+      time: 'Due now',
+    });
+  }
+
+  if (upcomingAppointments.length > 0) {
+    const appt = upcomingAppointments[0];
+    notifications.push({
+      id: 'appointment',
+      icon: 'calendar-outline',
+      title: 'Upcoming Appointment Today',
+      desc: `${appt.doctorName} • ${appt.time} • ${appt.hospital}`,
+      color: '#2563EB',
+      bg: '#EFF6FF',
+      time: 'Today',
+    });
+  }
+
+  if (isBmiOverweight) {
+    notifications.push({
+      id: 'bmi',
+      icon: 'fitness-outline',
+      title: 'BMI Alert: Slightly Above Normal',
+      desc: `Your BMI is ${bmi.toFixed(1)}. Target: 18.5 – 24.9`,
+      color: '#DC2626',
+      bg: '#FEF2F2',
+      time: 'Take action',
+    });
+  }
+
+  const activeNotifications = notifications.filter((n) => !dismissed.includes(n.id));
+
+  const dismissNotification = (id: string) => {
+    setDismissed([...dismissed, id]);
+  };
+
+  if (activeNotifications.length === 0) {
+    return (
+      <View style={styles.notificationBoxEmpty}>
+        <Ionicons name="checkmark-circle-outline" size={24} color="#10B981" />
+        <Text style={styles.notificationEmptyText}>All caught up! No notifications.</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.notificationBox}>
+      <View style={styles.notificationHeader}>
+        <Text style={styles.notificationHeaderTitle}>📬 Notifications</Text>
+        <Text style={styles.notificationHeaderCount}>{activeNotifications.length} alerts</Text>
+      </View>
+      {activeNotifications.map((notif) => (
+        <View key={notif.id} style={[styles.notificationItem, { backgroundColor: notif.bg }]}>
+          <View style={[styles.notificationIconWrapper, { backgroundColor: notif.color + '20' }]}>
+            <Ionicons name={notif.icon as any} size={20} color={notif.color} />
+          </View>
+          <View style={styles.notificationContent}>
+            <Text style={styles.notificationTitle}>{notif.title}</Text>
+            <Text style={styles.notificationDesc}>{notif.desc}</Text>
+            <View style={styles.notificationTimeWrapper}>
+              <Ionicons name="time-outline" size={12} color="#94A3B8" />
+              <Text style={styles.notificationTime}>{notif.time}</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.notificationDismiss}
+            onPress={() => dismissNotification(notif.id)}
+          >
+            <Ionicons name="close-outline" size={18} color="#94A3B8" />
+          </TouchableOpacity>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ===== DASHBOARD HOME =====
+function DashboardHome({
+  reminders,
+  appointments,
+  bmi,
+  setReminders,
+  setAppointments,
+  setBmi,
+  onNavigate,
+}: {
+  reminders: Reminder[];
+  appointments: Appointment[];
+  bmi: number;
+  setReminders: React.Dispatch<React.SetStateAction<Reminder[]>>;
+  setAppointments: React.Dispatch<React.SetStateAction<Appointment[]>>;
+  setBmi: React.Dispatch<React.SetStateAction<number>>;
+  onNavigate: (tab: string) => void;
+}) {
+  const scaleAnims = useRef([
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+  ]).current;
+
+  const handlePressIn = (index: number) => {
+    Animated.spring(scaleAnims[index], {
+      toValue: 0.95,
+      useNativeDriver: true,
+      speed: 50,
+    }).start();
+  };
+
+  const handlePressOut = (index: number) => {
+    Animated.spring(scaleAnims[index], {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 50,
+    }).start();
+  };
+
+  // Section modules – counts dynamically reflect state
+  const section1Modules = [
+    {
+      id: 'reminders',
+      icon: 'notifications-outline',
+      label: 'Reminders',
+      desc: `${reminders.filter((r) => !r.takenToday).length} pending`,
+      colors: ['#0891B2', '#06B6D4'],
+      bg: '#ECFEFF',
+      gradient: ['#ECFEFF', '#CFFAFE'],
+    },
+    {
+      id: 'appointments',
+      icon: 'calendar-outline',
+      label: 'Appointments',
+      desc: `${appointments.length} booked`,
+      colors: ['#D97706', '#F59E0B'],
+      bg: '#FFFBEB',
+      gradient: ['#FFFBEB', '#FEF3C7'],
+    },
+    {
+      id: 'blood-search',
+      icon: 'heart-outline',
+      label: 'Blood Search',
+      desc: 'Find donors & banks',
+      colors: ['#DC2626', '#EF4444'],
+      bg: '#FEF2F2',
+      gradient: ['#FEF2F2', '#FEE2E2'],
+    },
+  ];
+
+  const section2Modules = [
+    {
+      id: 'reports',
+      icon: 'document-text-outline',
+      label: 'My Reports',
+      desc: 'Upload & view records',
+      colors: ['#2563EB', '#3B82F6'],
+      bg: '#EFF6FF',
+      gradient: ['#EFF6FF', '#DBEAFE'],
+    },
+    {
+      id: 'emergency',
+      icon: 'alert-circle-outline',
+      label: 'Emergency',
+      desc: 'Quick access',
+      colors: ['#EF4444', '#F87171'],
+      bg: '#FEF2F2',
+      gradient: ['#FEF2F2', '#FEE2E2'],
+    },
+    {
+      id: 'health-summary',
+      icon: 'stats-chart-outline',
+      label: 'Health Summary',
+      desc: 'Your health overview',
+      colors: ['#7C3AED', '#8B5CF6'],
+      bg: '#EDE9FE',
+      gradient: ['#EDE9FE', '#DDD6FE'],
+    },
+  ];
+
+  const section3Modules = [
+    {
+      id: 'ai-insights',
+      icon: 'bulb-outline',
+      label: 'AI Insights',
+      desc: 'Smart health analysis',
+      colors: ['#7C3AED', '#A78BFA'],
+      bg: '#EDE9FE',
+      gradient: ['#EDE9FE', '#DDD6FE'],
+    },
+    {
+      id: 'available-hospitals',
+      icon: 'business-outline',
+      label: 'Available Hospital',
+      desc: 'Find nearby hospitals',
+      colors: ['#059669', '#10B981'],
+      bg: '#ECFDF5',
+      gradient: ['#ECFDF5', '#D1FAE5'],
+    },
+  ];
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return '🌅 Good Morning';
+    if (hour < 17) return '☀️ Good Afternoon';
+    return '🌙 Good Evening';
+  };
 
   return (
     <View style={styles.screenContainer}>
-      <Text style={styles.pageTitle}>Dashboard</Text>
-      <Text style={styles.pageSubtitle}>Welcome back to AmarCure</Text>
+      {/* Greeting */}
+      <View style={styles.greetingContainer}>
+        <View>
+          <Text style={styles.greetingText}>{getGreeting()}, Tanvir!</Text>
+          <Text style={styles.greetingSub}>Welcome to AmarCure Healthcare</Text>
+        </View>
+        <View style={styles.greetingBadge}>
+          <LinearGradient
+            colors={['#2563EB', '#3B82F6']}
+            style={styles.greetingBadgeGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Text style={styles.greetingBadgeText}>BD's 1st AI Healthcare</Text>
+          </LinearGradient>
+        </View>
+      </View>
 
-      {/* Reminders Preview */}
+      {/* ===== DYNAMIC NOTIFICATION BOX ===== */}
+      <NotificationBox reminders={reminders} appointments={appointments} bmi={bmi} />
+
+      {/* SECTION 1 */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Your Reminders</Text>
-        {reminders.length === 0 ? (
-          <View style={styles.reminderCard}>
-            <Ionicons name="notifications-outline" size={32} color="#64748b" />
-            <Text style={styles.reminderText}>No reminders set yet.</Text>
-            <TouchableOpacity
-              style={styles.reminderBtn}
-              onPress={() => setActiveTab('reminders')}
+        <Text style={styles.sectionTitle}>🏥 Health Management</Text>
+        <Text style={styles.sectionSubtitle}>Stay on track with your health</Text>
+
+        <View style={styles.modulesGrid}>
+          {section1Modules.map((module, index) => (
+            <Animated.View
+              key={module.id}
+              style={[
+                styles.moduleCardWrapper,
+                { transform: [{ scale: scaleAnims[index] }] },
+              ]}
             >
-              <Text style={styles.reminderBtnText}>Click 'Reminders' to add one</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <>
-            <View style={styles.reminderSummary}>
-              <Text style={styles.reminderSummaryText}>
-                {pendingReminders.length} reminder{pendingReminders.length !== 1 ? 's' : ''} pending
-              </Text>
-              <TouchableOpacity onPress={() => setActiveTab('reminders')}>
-                <Text style={styles.seeAllText}>See All →</Text>
-              </TouchableOpacity>
-            </View>
-            {pendingReminders.slice(0, 3).map((r) => {
-              const periodEmoji =
-                r.dayPeriod === 'morning' ? '🌅' : r.dayPeriod === 'noon' ? '☀️' : '🌙';
-              const periodLabel =
-                r.dayPeriod.charAt(0).toUpperCase() + r.dayPeriod.slice(1);
-              return (
-                <View key={r.id} style={styles.reminderItem}>
-                  <Ionicons name="medkit-outline" size={20} color="#0052cc" />
-                  <View style={styles.reminderItemContent}>
-                    <Text style={styles.reminderItemText}>{r.medicineName}</Text>
-                    <Text style={styles.reminderItemSub}>
-                      {periodEmoji} {periodLabel} •{' '}
-                      {r.timing === 'before-meal' ? 'Before meal' : 'After meal'} • {r.timesPerDay}x/day
-                    </Text>
+              <TouchableOpacity
+                style={styles.moduleCard}
+                activeOpacity={1}
+                onPressIn={() => handlePressIn(index)}
+                onPressOut={() => handlePressOut(index)}
+                onPress={() => onNavigate(module.id)}
+              >
+                <LinearGradient
+                  colors={module.gradient as any}
+                  style={styles.moduleCardGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <View style={[styles.moduleIconWrapper, { backgroundColor: module.bg }]}>
+                    <LinearGradient
+                      colors={module.colors as any}
+                      style={styles.moduleIconGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Ionicons name={module.icon as any} size={20} color="#ffffff" />
+                    </LinearGradient>
                   </View>
-                  <Text style={styles.reminderItemDuration}>{r.durationDays}d</Text>
-                </View>
-              );
-            })}
-            {pendingReminders.length > 3 && (
-              <Text style={styles.moreText}>+{pendingReminders.length - 3} more</Text>
-            )}
-          </>
-        )}
-      </View>
-
-      {/* Quick Actions */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.quickActionsRow}>
-          <TouchableOpacity style={styles.quickActionCard}>
-            <View style={[styles.actionIcon, { backgroundColor: '#eff6ff' }]}>
-              <Ionicons name="document-text-outline" size={28} color="#0052cc" />
-            </View>
-            <Text style={styles.actionLabel}>My Reports</Text>
-            <Text style={styles.actionDesc}>View and upload your medical records.</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.quickActionCard, styles.uploadCard]}>
-            <View style={[styles.actionIcon, { backgroundColor: '#ecfdf5' }]}>
-              <Ionicons name="cloud-upload-outline" size={28} color="#10b981" />
-            </View>
-            <Text style={styles.actionLabel}>Upload</Text>
-            <Text style={styles.actionDesc}>Upload a new medical document.</Text>
-          </TouchableOpacity>
+                  <Text style={styles.moduleLabel}>{module.label}</Text>
+                  <Text style={styles.moduleDesc}>{module.desc}</Text>
+                  <View style={styles.moduleArrow}>
+                    <Ionicons name="arrow-forward-circle" size={18} color={module.colors[0]} />
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
+          ))}
         </View>
       </View>
 
-      {/* Appointments */}
+      {/* SECTION 2 */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Appointments</Text>
-        <View style={styles.appointmentCard}>
-          <View>
-            <Text style={styles.appointmentTitle}>Book doctor appointments directly.</Text>
-            <Text style={styles.appointmentSubtext}>
-              Schedule with top specialists in your area.
-            </Text>
-          </View>
-          <TouchableOpacity style={styles.bookNowBtn}>
-            <Text style={styles.bookNowText}>Book Now →</Text>
-          </TouchableOpacity>
+        <Text style={styles.sectionTitle}>❤️ Personal Health</Text>
+        <Text style={styles.sectionSubtitle}>Your health records & emergency</Text>
+
+        <View style={styles.modulesGrid}>
+          {section2Modules.map((module, index) => {
+            const idx = index + 3;
+            return (
+              <Animated.View
+                key={module.id}
+                style={[
+                  styles.moduleCardWrapper,
+                  { transform: [{ scale: scaleAnims[idx] }] },
+                ]}
+              >
+                <TouchableOpacity
+                  style={styles.moduleCard}
+                  activeOpacity={1}
+                  onPressIn={() => handlePressIn(idx)}
+                  onPressOut={() => handlePressOut(idx)}
+                  onPress={() => onNavigate(module.id)}
+                >
+                  <LinearGradient
+                    colors={module.gradient as any}
+                    style={styles.moduleCardGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <View style={[styles.moduleIconWrapper, { backgroundColor: module.bg }]}>
+                      <LinearGradient
+                        colors={module.colors as any}
+                        style={styles.moduleIconGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                      >
+                        <Ionicons name={module.icon as any} size={20} color="#ffffff" />
+                      </LinearGradient>
+                    </View>
+                    <Text style={styles.moduleLabel}>{module.label}</Text>
+                    <Text style={styles.moduleDesc}>{module.desc}</Text>
+                    <View style={styles.moduleArrow}>
+                      <Ionicons name="arrow-forward-circle" size={18} color={module.colors[0]} />
+                    </View>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* SECTION 3 */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>🧠 Smart & Resources</Text>
+        <Text style={styles.sectionSubtitle}>AI insights & hospital locator</Text>
+
+        <View style={styles.modulesGrid}>
+          {section3Modules.map((module, index) => {
+            const idx = index + 6;
+            return (
+              <Animated.View
+                key={module.id}
+                style={[
+                  styles.moduleCardWrapper,
+                  styles.moduleCardWrapperHalf,
+                  { transform: [{ scale: scaleAnims[idx] }] },
+                ]}
+              >
+                <TouchableOpacity
+                  style={styles.moduleCard}
+                  activeOpacity={1}
+                  onPressIn={() => handlePressIn(idx)}
+                  onPressOut={() => handlePressOut(idx)}
+                  onPress={() => onNavigate(module.id)}
+                >
+                  <LinearGradient
+                    colors={module.gradient as any}
+                    style={styles.moduleCardGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <View style={[styles.moduleIconWrapper, { backgroundColor: module.bg }]}>
+                      <LinearGradient
+                        colors={module.colors as any}
+                        style={styles.moduleIconGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                      >
+                        <Ionicons name={module.icon as any} size={20} color="#ffffff" />
+                      </LinearGradient>
+                    </View>
+                    <Text style={styles.moduleLabel}>{module.label}</Text>
+                    <Text style={styles.moduleDesc}>{module.desc}</Text>
+                    <View style={styles.moduleArrow}>
+                      <Ionicons name="arrow-forward-circle" size={18} color={module.colors[0]} />
+                    </View>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
+            );
+          })}
         </View>
       </View>
     </View>
   );
 }
 
-// ---------- Other Screen Placeholders ----------
-function ReportsScreen() {
-  return (
-    <View style={styles.screenContainer}>
-      <Text style={styles.pageTitle}>📄 My Reports</Text>
-      <Text style={styles.pageSubtitle}>View and upload your medical records here.</Text>
-    </View>
-  );
-}
-
-function ProfileScreen() {
-  return (
-    <View style={styles.screenContainer}>
-      <Text style={styles.pageTitle}>👤 Profile</Text>
-      <Text style={styles.pageSubtitle}>Manage your personal information.</Text>
-    </View>
-  );
-}
-
-function FamilyScreen() {
-  return (
-    <View style={styles.screenContainer}>
-      <Text style={styles.pageTitle}>👨‍👩‍👦 Family</Text>
-      <Text style={styles.pageSubtitle}>Manage your family members' health records.</Text>
-    </View>
-  );
-}
-
-function AppointmentsScreen() {
-  return (
-    <View style={styles.screenContainer}>
-      <Text style={styles.pageTitle}>📅 Appointments</Text>
-      <Text style={styles.pageSubtitle}>View and book your doctor appointments.</Text>
-    </View>
-  );
-}
-
-function AIInsightsScreen() {
-  return (
-    <View style={styles.screenContainer}>
-      <Text style={styles.pageTitle}>🧠 AI Health Insights</Text>
-      <Text style={styles.pageSubtitle}>Get AI-powered analysis of your health data.</Text>
-    </View>
-  );
-}
-
-// ---------- Styles ----------
+// ===== STYLES (unchanged – only the test buttons removed) =====
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -341,24 +783,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   sidebar: {
-    width: 220,
+    width: 260,
+    flexShrink: 0,
     height: '100%',
     backgroundColor: '#0b1a3a',
-    paddingVertical: 20,
-    paddingHorizontal: 12,
     zIndex: 10,
+  },
+  sidebarBlur: {
+    flex: 1,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
   },
   sidebarHidden: {
     display: 'none',
   },
   sidebarMobile: {
     position: 'absolute',
-    left: -240,
+    left: -280,
     top: 0,
-    width: 240,
+    width: 280,
     height: '100%',
     zIndex: 20,
-    transition: 'left 0.3s ease',
+    transition: 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
   },
   sidebarMobileOpen: {
     left: 0,
@@ -369,14 +815,14 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     zIndex: 15,
   },
   logoSection: {
     alignItems: 'center',
-    paddingBottom: 20,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
+    borderBottomColor: 'rgba(255,255,255,0.06)',
     marginBottom: 12,
   },
   tagline: {
@@ -385,7 +831,24 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: 2,
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 1.2,
+  },
+  sidebarSearch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  sidebarSearchInput: {
+    flex: 1,
+    height: 38,
+    paddingHorizontal: 8,
+    fontSize: 13,
+    color: '#ffffff',
   },
   menu: {
     flex: 1,
@@ -394,67 +857,109 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderRadius: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
     marginBottom: 2,
-    gap: 10,
+    gap: 12,
+    position: 'relative',
+    transition: 'all 0.2s ease',
   },
   menuItemActive: {
     backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  menuItemHover: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  menuIconWrapper: {
+    width: 24,
+    alignItems: 'center',
   },
   menuLabel: {
     fontSize: 14,
     fontWeight: '500',
     color: '#94a3b8',
+    flex: 1,
   },
   menuLabelActive: {
     color: '#ffffff',
     fontWeight: '600',
   },
+  menuActiveDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#2563EB',
+  },
   bottomSection: {
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopColor: 'rgba(255,255,255,0.06)',
     paddingTop: 12,
     gap: 10,
   },
-  connectedStatus: {
+  userProfile: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 10,
+    gap: 10,
+    paddingHorizontal: 4,
+    paddingVertical: 8,
   },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#10b981',
+  userAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(37, 99, 235, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(37, 99, 235, 0.3)',
   },
-  statusText: {
+  userAvatarText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
     fontSize: 13,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  userRole: {
+    fontSize: 11,
     color: '#94a3b8',
-    fontWeight: '500',
+    fontWeight: '400',
   },
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
   },
   logoutText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#ef4444',
   },
   mainContent: {
     flex: 1,
-    marginLeft: 220,
-    backgroundColor: 'transparent',
+    backgroundColor: '#F8FAFC',
   },
-  mainContentFull: {
-    marginLeft: 0,
+  whiteBackground: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  content: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 20,
   },
   mobileHeader: {
     flexDirection: 'row',
@@ -472,186 +977,536 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#ffffff',
   },
-  backgroundImage: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
+  headerNotification: {
+    padding: 4,
+    position: 'relative',
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 16,
+  notificationDot: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+    borderWidth: 1.5,
+    borderColor: '#0b1a3a',
   },
   screenContainer: {
-    paddingBottom: 40,
+    paddingBottom: 8,
   },
-  pageTitle: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#0f172a',
-  },
-  pageSubtitle: {
-    fontSize: 14,
-    color: '#334155',
-    fontWeight: '500',
-    marginTop: 2,
-    marginBottom: 24,
-  },
-  section: {
-    marginBottom: 28,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0f172a',
-    marginBottom: 14,
-  },
-  reminderCard: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    borderStyle: 'dashed',
-    gap: 8,
-  },
-  reminderText: {
-    fontSize: 16,
-    color: '#334155',
-    fontWeight: '500',
-  },
-  reminderBtn: {
-    marginTop: 4,
-  },
-  reminderBtnText: {
-    fontSize: 14,
-    color: '#0052cc',
-    fontWeight: '600',
-  },
-  reminderSummary: {
+  greetingContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+    paddingVertical: 4,
   },
-  reminderSummaryText: {
-    fontSize: 14,
-    color: '#334155',
+  greetingText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  greetingSub: {
+    fontSize: 12,
+    color: '#64748B',
     fontWeight: '500',
+    marginTop: 1,
   },
-  seeAllText: {
-    fontSize: 14,
-    color: '#0052cc',
-    fontWeight: '600',
+  greetingBadge: {
+    borderRadius: 8,
+    overflow: 'hidden',
   },
-  reminderItem: {
+  greetingBadgeGradient: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  greetingBadgeText: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: '#ffffff',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  // ===== NOTIFICATION BOX STYLES =====
+  notificationBox: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  notificationBoxEmpty: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginBottom: 8,
-    gap: 10,
+    justifyContent: 'center',
+    gap: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: '#F1F5F9',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  reminderItemContent: {
-    flex: 1,
-  },
-  reminderItemText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#0f172a',
-  },
-  reminderItemSub: {
-    fontSize: 12,
-    color: '#64748b',
-    fontWeight: '400',
-  },
-  reminderItemDuration: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#0052cc',
-    backgroundColor: '#e0e7ff',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-  },
-  moreText: {
+  notificationEmptyText: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: '#64748B',
     fontWeight: '500',
-    marginTop: 4,
   },
-  quickActionsRow: {
-    flexDirection: width < 600 ? 'column' : 'row',
-    gap: 14,
-  },
-  quickActionCard: {
-    flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    alignItems: 'center',
-    minHeight: 130,
-    justifyContent: 'center',
-  },
-  uploadCard: {
-    backgroundColor: 'rgba(255,255,255,0.85)',
-  },
-  actionIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 12,
-    justifyContent: 'center',
+  notificationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
   },
-  actionLabel: {
-    fontSize: 16,
+  notificationHeaderTitle: {
+    fontSize: 14,
     fontWeight: '700',
-    color: '#0f172a',
-    marginBottom: 4,
+    color: '#0F172A',
   },
-  actionDesc: {
+  notificationHeaderCount: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#2563EB',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  notificationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
+  notificationIconWrapper: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  notificationContent: {
+    flex: 1,
+  },
+  notificationTitle: {
     fontSize: 13,
-    color: '#475569',
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  notificationDesc: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '400',
+  },
+  notificationTimeWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  notificationTime: {
+    fontSize: 10,
+    color: '#94A3B8',
+    fontWeight: '400',
+  },
+  notificationDismiss: {
+    padding: 4,
+  },
+  // ===== SECTION STYLES =====
+  section: {
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  sectionSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '400',
+    marginBottom: 8,
+  },
+  modulesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  moduleCardWrapper: {
+    width: isWeb ? '31%' : isTablet ? '48%' : '47%',
+  },
+  moduleCardWrapperHalf: {
+    width: isWeb ? '47%' : isTablet ? '48%' : '47%',
+  },
+  moduleCard: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  moduleCardGradient: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.6)',
+  },
+  moduleIconWrapper: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  moduleIconGradient: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  moduleLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  moduleDesc: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '400',
+    marginTop: 0,
+  },
+  moduleArrow: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+  },
+  reportsScreen: {
+    paddingBottom: 20,
+  },
+  reportsHeader: {
+    flexDirection: isWeb ? 'row' : 'column',
+    justifyContent: 'space-between',
+    alignItems: isWeb ? 'center' : 'stretch',
+    gap: 14,
+    marginBottom: 14,
+  },
+  reportsHeaderText: {
+    flex: 1,
+  },
+  reportsTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  reportsSubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#64748B',
+  },
+  uploadReportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#2563EB',
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  uploadReportButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  buttonDisabled: {
+    opacity: 0.65,
+  },
+  reportSecurityNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+    borderWidth: 1,
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  reportSecurityText: {
+    flex: 1,
+    color: '#1E40AF',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  reportLoadingBox: {
+    minHeight: 240,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  reportLoadingText: {
+    color: '#64748B',
+    fontSize: 14,
+  },
+  emptyReportsCard: {
+    minHeight: 260,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+  },
+  emptyReportsTitle: {
+    marginTop: 12,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  emptyReportsText: {
+    marginTop: 5,
+    fontSize: 13,
+    color: '#64748B',
     textAlign: 'center',
   },
-  appointmentCard: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 16,
-    padding: 20,
+  reportGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  reportCard: {
+    width: isWeb ? '31.8%' : isTablet ? '48%' : '100%',
+    minWidth: isWeb ? 240 : undefined,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    flexDirection: width < 600 ? 'column' : 'row',
-    justifyContent: 'space-between',
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
+    padding: 12,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  reportPreview: {
+    height: 150,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#F8FAFC',
+    marginBottom: 10,
+  },
+  reportThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  pdfPreview: {
+    flex: 1,
     alignItems: 'center',
-    gap: 14,
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
   },
-  appointmentTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#0f172a',
+  pdfLabel: {
+    marginTop: 5,
+    fontWeight: '800',
+    color: '#DC2626',
   },
-  appointmentSubtext: {
+  reportName: {
+    minHeight: 38,
     fontSize: 14,
-    color: '#475569',
-    marginTop: 4,
+    lineHeight: 19,
+    fontWeight: '700',
+    color: '#0F172A',
   },
-  bookNowBtn: {
-    backgroundColor: '#0052cc',
-    paddingHorizontal: 22,
+  reportMeta: {
+    marginTop: 4,
+    fontSize: 11,
+    color: '#94A3B8',
+  },
+  reportActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginTop: 12,
+  },
+  reportActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 9,
+    paddingVertical: 8,
+  },
+  reportActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  reportDeleteButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 38,
+    height: 36,
+    borderRadius: 9,
+    backgroundColor: '#FEF2F2',
+  },
+  reportModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.78)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 18,
+  },
+  reportViewerModal: {
+    width: '100%',
+    maxWidth: 900,
+    height: isWeb ? '90%' : '82%',
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  reportModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  reportModalTitle: {
+    flex: 1,
+    marginRight: 10,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  fullReportImage: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: '#0F172A',
+  },
+  qrModal: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+  },
+  qrCloseButton: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+    zIndex: 2,
+    padding: 5,
+  },
+  qrTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  qrReportName: {
+    marginTop: 5,
+    marginBottom: 18,
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  qrInstruction: {
+    marginTop: 16,
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  openShareLinkButton: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: '#7C3AED',
+    paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
   },
-  bookNowText: {
+  openShareLinkText: {
     color: '#ffffff',
+    fontSize: 13,
     fontWeight: '700',
-    fontSize: 15,
+  },
+  placeholderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 40,
+  },
+  placeholderCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    padding: 40,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
+    width: '100%',
+    maxWidth: 500,
+  },
+  placeholderTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  placeholderSubtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
+    marginBottom: 24,
+  },
+  placeholderIcon: {
+    marginBottom: 16,
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: '#475569',
+    fontWeight: '500',
+  },
+  placeholderHint: {
+    fontSize: 13,
+    color: '#94A3B8',
+    fontWeight: '400',
+    marginTop: 4,
   },
 });
