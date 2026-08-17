@@ -1,579 +1,1057 @@
-import { useRouter } from "expo-router";
-import React, { useRef } from "react";
+import React from "react";
+
 import {
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
   View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  useWindowDimensions,
+  Linking,
 } from "react-native";
 
-const isWeb = Platform.OS === "web";
+import { router } from "expo-router";
 
-const CustomLogo = () => (
-  <View
-    style={{
-      width: 32,
-      height: 32,
-      marginRight: 8,
-      justifyContent: "center",
-      alignItems: "center",
-    }}
-  >
-    <View
-      style={{
-        position: "absolute",
-        width: 30,
-        height: 12,
-        backgroundColor: "#3cd09d",
-        borderRadius: 6,
-        transform: [{ rotate: "45deg" }],
-        opacity: 0.9,
-      }}
-    />
-    <View
-      style={{
-        position: "absolute",
-        width: 30,
-        height: 12,
-        backgroundColor: "#0052cc",
-        borderRadius: 6,
-        transform: [{ rotate: "-45deg" }],
-        opacity: 0.9,
-      }}
-    />
-  </View>
-);
 
-const FooterLogo = () => (
-  <View
-    style={{
-      width: 40,
-      height: 40,
-      marginBottom: 12,
-      justifyContent: "center",
-      alignItems: "center",
-    }}
-  >
-    <View
-      style={{
-        position: "absolute",
-        width: 38,
-        height: 14,
-        backgroundColor: "#3cd09d",
-        borderRadius: 6,
-        transform: [{ rotate: "45deg" }],
-      }}
-    />
-    <View
-      style={{
-        position: "absolute",
-        width: 38,
-        height: 14,
-        backgroundColor: "#ffffff",
-        borderRadius: 6,
-        transform: [{ rotate: "-45deg" }],
-        opacity: 0.9,
-      }}
-    />
-  </View>
-);
+export default function Home() {
 
-export default function App() {
-  const router = useRouter();
-  const scrollRef = useRef<ScrollView>(null);
-  const exploreY = useRef<number>(0);
-  const featuresY = useRef<number>(0);
-  const aboutY = useRef<number>(0);
+  const { width } = useWindowDimensions();
 
-  const scrollToSection = (layoutY: number) => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({ y: layoutY - 20, animated: true });
-    }
-  };
+  const isMobile = width < 800;
+
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* --- STICKY NAVBAR PANEL --- */}
+
+    <ScrollView
+      style={styles.page}
+      contentContainerStyle={styles.pageContent}
+      showsVerticalScrollIndicator={false}
+    >
+
+
+      {/* ================================= */}
+      {/* NAVBAR                            */}
+      {/* ================================= */}
+
       <View style={styles.navbar}>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <CustomLogo />
-          <Text style={styles.logoText}>AmarCure</Text>
+
+
+        {/* AmarCure Logo / Slogan */}
+
+        <View style={styles.logoArea}>
+
+          <Text style={styles.logo}>
+            AmarCure
+          </Text>
+
+          <Text style={styles.slogan}>
+            Your Health, Connected.
+          </Text>
+
         </View>
 
-        {isWeb ? (
+
+
+        {/* Navigation */}
+
+        {!isMobile && (
+
           <View style={styles.navLinks}>
-            <TouchableOpacity onPress={() => scrollToSection(exploreY.current)}>
-              <Text style={[styles.navLink, styles.activeNavLink]}>
-                Explore
+
+            <TouchableOpacity>
+              <Text style={styles.navText}>
+                Home
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => scrollToSection(featuresY.current)}
-            >
-              <Text style={styles.navLink}>Features</Text>
+
+            <TouchableOpacity>
+              <Text style={styles.navText}>
+                About
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => scrollToSection(aboutY.current)}>
-              <Text style={styles.navLink}>About</Text>
+
+            <TouchableOpacity>
+              <Text style={styles.navText}>
+                Contact
+              </Text>
             </TouchableOpacity>
+
           </View>
-        ) : (
-          <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-            <TouchableOpacity
-              style={styles.mobileLoginBtn}
-              onPress={() => router.push("/(tabs)/login")}
-            >
-              <Text style={styles.mobileLoginBtnText}>Log In</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.mobileLoginBtn, { backgroundColor: "#10b981" }]}
-              onPress={() => router.push("/(tabs)/register")}
-            >
-              <Text style={styles.mobileLoginBtnText}>Sign Up</Text>
-            </TouchableOpacity>
-          </View>
+
         )}
 
-        {isWeb && (
-          <View style={{ flexDirection: "row", gap: 15, alignItems: "center" }}>
-            <TouchableOpacity onPress={() => router.push("/(tabs)/login")}>
-              <Text
-                style={{ color: "#475569", fontWeight: "700", fontSize: 14 }}
-              >
-                Log In
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={{
-                backgroundColor: "#0052cc",
-                paddingHorizontal: 16,
-                paddingVertical: 8,
-                borderRadius: 8,
-              }}
-              onPress={() => router.push("/(tabs)/register")}
-            >
-              <Text
-                style={{ color: "#ffffff", fontWeight: "700", fontSize: 14 }}
-              >
-                Sign Up
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+
+
+        {/* Login */}
+
+        <TouchableOpacity
+          style={styles.topLogin}
+          onPress={() => router.push("/login")}
+        >
+
+          <Text style={styles.topLoginText}>
+            Login
+          </Text>
+
+        </TouchableOpacity>
+
       </View>
 
-      <ScrollView
-        ref={scrollRef}
-        style={{ flex: 1 }}
-        contentContainerStyle={styles.scrollContainer}
-        showsVerticalScrollIndicator={false}
+
+
+      {/* ================================= */}
+      {/* HERO SECTION                      */}
+      {/* ================================= */}
+
+      <View
+        style={[
+          styles.hero,
+          isMobile && styles.heroMobile,
+        ]}
       >
-        {/* --- EXPLORE SECTION --- */}
+
+
+        {/* LEFT SIDE */}
+
         <View
-          onLayout={(e) => {
-            exploreY.current = e.nativeEvent.layout.y;
-          }}
-          style={styles.exploreSection}
+          style={[
+            styles.leftSide,
+            isMobile && styles.fullWidth,
+          ]}
         >
-          <View style={styles.greenBadge}>
-            <Text style={styles.greenBadgeText}>
-              ✨ Transforming Healthcare in Bangladesh
-            </Text>
-          </View>
 
           <Text style={styles.heroTitle}>
-            Your Centralized,{"\n"}Intelligent Health{"\n"}
-            <Text style={{ color: "#10b981" }}>Ecosystem</Text>
+
+            Your Health,
+            {"\n"}
+
+            <Text style={styles.highlight}>
+              Connected.
+            </Text>
+
           </Text>
 
-          <Text style={styles.heroSubtitle}>
-            Digitize prescriptions, automatically translate complex laboratory
-            reports, and securely track your family's vital wellness timeline
-            using AI.
+
+          <Text style={styles.heroText}>
+
+            A simple and secure place to manage your
+            important healthcare information.
+
           </Text>
+
+
+
+          {/* Login + Register */}
+
+          <View style={styles.buttons}>
+
+            <TouchableOpacity
+              style={styles.registerButton}
+              onPress={() => router.push("/register")}
+            >
+
+              <Text style={styles.registerText}>
+                Create Account
+              </Text>
+
+            </TouchableOpacity>
+
+
+            <TouchableOpacity
+              style={styles.loginButton}
+              onPress={() => router.push("/login")}
+            >
+
+              <Text style={styles.loginText}>
+                Login
+              </Text>
+
+            </TouchableOpacity>
+
+          </View>
+
+        </View>
+
+
+
+        {/* ================================= */}
+        {/* RIGHT SIDE DOCTOR PHOTO           */}
+        {/* ================================= */}
+
+        <View
+          style={[
+            styles.rightSide,
+            isMobile && styles.rightMobile,
+          ]}
+        >
+
+          <View style={styles.mainCircle}>
+
+           <Image
+  source={require("../assets/images/doctor-records.jpg")}
+  style={styles.doctorImage}
+  resizeMode="cover"
+/>
+          </View>
+
+
+          {/* Small Brand Label */}
+
+          <View style={styles.photoLabel}>
+
+            <Text style={styles.photoLabelTitle}>
+              AmarCure
+            </Text>
+
+            <Text style={styles.photoLabelText}>
+              Your Health, Connected.
+            </Text>
+
+          </View>
+
+        </View>
+
+      </View>
+
+
+
+      {/* ================================= */}
+      {/* ABOUT SECTION                      */}
+      {/* ================================= */}
+
+      <View style={styles.aboutSection}>
+
+        <View
+          style={[
+            styles.aboutContent,
+            isMobile && styles.aboutMobile,
+          ]}
+        >
+
+
+          <View style={styles.aboutTitleArea}>
+
+            <Text style={styles.smallHeading}>
+              ABOUT US
+            </Text>
+
+            <Text style={styles.aboutTitle}>
+              Healthcare made
+              {"\n"}
+              easier with AmarCure.
+            </Text>
+
+          </View>
+
+
+
+          <View style={styles.aboutTextArea}>
+
+            <Text style={styles.aboutText}>
+
+              AmarCure is designed to bring essential healthcare
+              services and medical information together in one
+              convenient platform.
+
+            </Text>
+
+
+            <Text style={styles.aboutTextSecond}>
+
+              Our goal is simple — make healthcare information
+              easier to manage, access and use whenever you need it.
+
+            </Text>
+
+          </View>
+
+        </View>
+
+      </View>
+
+
+
+      {/* ================================= */}
+      {/* CONTACT SECTION                    */}
+      {/* ================================= */}
+
+      <View style={styles.contactSection}>
+
+
+        <View style={styles.contactHeader}>
+
+          <Text style={styles.contactLogo}>
+            AmarCure
+          </Text>
+
+          <Text style={styles.contactSlogan}>
+            Your Health, Connected.
+          </Text>
+
+        </View>
+
+
+
+        <View
+          style={[
+            styles.contactItems,
+            isMobile && styles.contactItemsMobile,
+          ]}
+        >
+
+
+          {/* Phone */}
 
           <TouchableOpacity
-            style={styles.floatingButton}
-            activeOpacity={0.8}
-            onPress={() => router.push("/(tabs)/register")}
+            style={styles.contactItem}
+            onPress={() => Linking.openURL("tel:01762099987")}
           >
-            <Text style={styles.buttonText}>Create Free Account →</Text>
+
+            <Text style={styles.contactIcon}>
+              ☎
+            </Text>
+
+            <View>
+
+              <Text style={styles.contactLabel}>
+                Phone
+              </Text>
+
+              <Text style={styles.contactValue}>
+                01762099987
+              </Text>
+
+            </View>
+
           </TouchableOpacity>
 
-          <Text style={styles.checkmarkText}>
-            ✔ Secure. Private. AI-Powered.
-          </Text>
-        </View>
 
-        {/* --- QUOTE BANNER --- */}
-        <View style={styles.quoteBanner}>
-          <Text style={styles.quoteText}>
-            "Good health is not something we can buy. However, it can be an
-            extremely valuable savings account."
-          </Text>
-          <Text style={styles.quoteAuthor}>— Anne Wilson Schaef</Text>
-        </View>
 
-        {/* --- FEATURES GRID SECTION --- */}
-        <View
-          onLayout={(e) => {
-            featuresY.current = e.nativeEvent.layout.y;
-          }}
-          style={styles.featuresSection}
-        >
-          <View style={styles.card}>
-            <Text
-              style={[
-                styles.cardIcon,
-                { backgroundColor: "#f0f5ff", color: "#0052cc" },
-              ]}
-            >
-              📊
-            </Text>
-            <Text style={styles.cardTitle}>AI Report Parsing</Text>
-            <Text style={styles.cardDescription}>
-              Upload standard laboratory reports to instantly convert complex
-              parameters into transparent, patient-friendly diagnostic
-              summaries.
-            </Text>
-          </View>
+          {/* Email */}
 
-          <View style={styles.card}>
-            <Text
-              style={[
-                styles.cardIcon,
-                { backgroundColor: "#fef2f2", color: "#dc2626" },
-              ]}
-            >
-              ⚠
-            </Text>
-            <Text style={styles.cardTitle}>Emergency Health Profile</Text>
-            <Text style={styles.cardDescription}>
-              One-click instantaneous display highlighting critical blood
-              groups, active medications, allergies, and emergency response
-              links.
-            </Text>
-          </View>
+          <TouchableOpacity
+            style={styles.contactItem}
+            onPress={() =>
+              Linking.openURL("mailto:contact@amarcure.com")
+            }
+          >
 
-          <View style={styles.card}>
-            <Text
-              style={[
-                styles.cardIcon,
-                { backgroundColor: "#e6f4ea", color: "#137333" },
-              ]}
-            >
-              📁
+            <Text style={styles.contactIcon}>
+              ✉
             </Text>
-            <Text style={styles.cardTitle}>Centralized Records</Text>
-            <Text style={styles.cardDescription}>
-              Eliminate paper decay. Safely catalog prescriptions, diagnostics,
-              and vaccination details in one unified chronological space.
-            </Text>
-          </View>
 
-          <View style={styles.card}>
-            <Text
-              style={[
-                styles.cardIcon,
-                { backgroundColor: "#fffbeb", color: "#b45309" },
-              ]}
-            >
-              👥
-            </Text>
-            <Text style={styles.cardTitle}>Multi-User Accounts</Text>
-            <Text style={styles.cardDescription}>
-              Seamlessly monitor medication adherence pipelines and pending
-              appointments for both children and elderly family members.
-            </Text>
-          </View>
-        </View>
+            <View>
 
-        {/* --- ABOUT / FOOTER SECTION --- */}
-        <View
-          onLayout={(e) => {
-            aboutY.current = e.nativeEvent.layout.y;
-          }}
-          style={styles.footerSection}
-        >
-          <View style={styles.footerContent}>
-            <View style={styles.footerCol}>
-              <Text style={styles.footerHeader}>AmarCure Tele Online</Text>
-              <Text style={styles.footerText}>info@amarcurebd.com</Text>
-              <Text style={styles.footerPhone}>📞 10678</Text>
-              <Text style={styles.footerText}>Privacy Policy</Text>
-            </View>
-
-            <View style={[styles.footerCol, { alignItems: "center" }]}>
-              <FooterLogo />
-              <Text style={styles.footerLogoTitle}>AmarCure</Text>
-              <Text style={styles.footerLogoSub}>Transforming Healthcare</Text>
-              <TouchableOpacity style={styles.queryButton}>
-                <Text style={styles.queryButtonText}>Send Query</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View
-              style={[
-                styles.footerCol,
-                { alignItems: isWeb ? "flex-end" : "flex-start" },
-              ]}
-            >
-              <Text style={styles.footerHeader}>Dhaka</Text>
-              <Text
-                style={[
-                  styles.footerText,
-                  { textAlign: isWeb ? "right" : "left" },
-                ]}
-              >
-                AmarCure HQ, Bashundhara R/A,{"\n"}Dhaka 1229, Bangladesh.
+              <Text style={styles.contactLabel}>
+                Email
               </Text>
-              <Text
-                style={[
-                  styles.footerText,
-                  { fontSize: 11, color: "#475569", marginTop: 15 },
-                ]}
-              >
-                © Copyright 2026 amarcurebd. All rights reserved.
+
+              <Text style={styles.contactValue}>
+                contact@amarcure.com
               </Text>
+
             </View>
+
+          </TouchableOpacity>
+
+
+
+          {/* Location */}
+
+          <View style={styles.contactItem}>
+
+            <Text style={styles.contactIcon}>
+              ⌖
+            </Text>
+
+            <View>
+
+              <Text style={styles.contactLabel}>
+                Location
+              </Text>
+
+              <Text style={styles.contactValue}>
+                NSU, Dhaka, Bangladesh
+              </Text>
+
+            </View>
+
           </View>
+
         </View>
-      </ScrollView>
-    </SafeAreaView>
+
+
+
+        {/* Bottom line */}
+
+        <View style={styles.footerLine} />
+
+
+        <Text style={styles.copyright}>
+          © 2026 AmarCure. All rights reserved.
+        </Text>
+
+      </View>
+
+
+    </ScrollView>
+
   );
 }
 
+
+
+/* ================================= */
+/* STYLES                            */
+/* ================================= */
+
 const styles = StyleSheet.create({
-  container: {
+
+
+  /* ================================= */
+  /* PAGE                              */
+  /* ================================= */
+
+  page: {
+
     flex: 1,
-    backgroundColor: "#ffffff",
+
+    backgroundColor: "#F1F8FA",
+
   },
-  scrollContainer: {
-    alignItems: "center",
+
+
+  pageContent: {
+
+    minHeight: "100%",
+
   },
+
+
+
+  /* ================================= */
+  /* NAVBAR                            */
+  /* ================================= */
+
   navbar: {
+
     width: "100%",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: "5%",
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
-    backgroundColor: "#ffffff",
-    zIndex: 1000,
-  },
-  logoText: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#0f172a",
-  },
-  navLinks: {
-    flexDirection: "row",
-    gap: 4,
-    alignItems: "center",
-  },
-  navLink: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#475569",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  activeNavLink: {
-    color: "#0052cc",
-    backgroundColor: "#f0f5ff",
-    borderRadius: 20,
-    fontWeight: "700",
-  },
-  mobileLoginBtn: {
-    backgroundColor: "#0052cc",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  mobileLoginBtnText: {
-    color: "#ffffff",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  exploreSection: {
-    width: "100%",
-    maxWidth: 750,
-    alignItems: "center",
-    paddingTop: 36,
-    paddingBottom: 30,
-    paddingHorizontal: "5%",
-  },
-  greenBadge: {
-    backgroundColor: "#e6f4ea",
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#ceead6",
-    marginBottom: 20,
-  },
-  greenBadgeText: {
-    color: "#137333",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  heroTitle: {
-    fontSize: isWeb ? 54 : 28,
-    fontWeight: "900",
-    textAlign: "center",
-    color: "#0f172a",
-    lineHeight: isWeb ? 62 : 36,
-    marginBottom: 20,
-  },
-  heroSubtitle: {
-    fontSize: 14,
-    color: "#475569",
-    textAlign: "center",
-    lineHeight: 22,
-    fontWeight: "500",
-    marginBottom: 28,
-  },
-  floatingButton: {
-    backgroundColor: "#0052cc",
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    marginBottom: 20,
-  },
-  buttonText: {
-    color: "#ffffff",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  checkmarkText: {
-    fontSize: 13,
-    color: "#64748b",
-    fontWeight: "600",
-  },
-  quoteBanner: {
-    width: "90%",
-    maxWidth: 1100,
-    backgroundColor: "#f8fafc",
-    borderLeftWidth: 4,
-    borderLeftColor: "#3cd09d",
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 32,
-  },
-  quoteText: {
-    fontSize: 14,
-    fontWeight: "600",
-    fontStyle: "italic",
-    color: "#1e293b",
-    marginBottom: 4,
-  },
-  quoteAuthor: {
-    fontSize: 12,
-    color: "#137333",
-    fontWeight: "700",
-  },
-  featuresSection: {
-    width: "90%",
-    maxWidth: 1100,
-    flexDirection: isWeb ? "row" : "column",
-    flexWrap: "wrap",
-    gap: 16,
-    justifyContent: "space-between",
-    marginBottom: 48,
-  },
-  card: {
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#f1f5f9",
-    borderRadius: 16,
-    padding: 20,
-    width: isWeb ? "23%" : "100%",
-  },
-  cardIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    textAlign: "center",
-    lineHeight: 40,
-    fontSize: 18,
-    marginBottom: 16,
-    overflow: "hidden",
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#0f172a",
-    marginBottom: 8,
-  },
-  cardDescription: {
-    fontSize: 13,
-    color: "#475569",
-    lineHeight: 18,
-    fontWeight: "500",
-  },
-  footerSection: {
-    width: "100%",
-    backgroundColor: "#0b1329",
-    paddingVertical: 40,
-    paddingHorizontal: "5%",
-  },
-  footerContent: {
-    width: "100%",
-    maxWidth: 1100,
+
+    maxWidth: 1200,
+
     alignSelf: "center",
-    flexDirection: isWeb ? "row" : "column",
+
+    flexDirection: "row",
+
     justifyContent: "space-between",
-    gap: 30,
-  },
-  footerCol: {
-    width: isWeb ? "auto" : "100%",
-  },
-  footerHeader: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 12,
-  },
-  footerText: {
-    color: "#94a3b8",
-    fontSize: 13,
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  footerPhone: {
-    color: "#ffffff",
-    fontSize: 15,
-    fontWeight: "700",
-    marginBottom: 12,
-  },
-  footerLogoTitle: {
-    color: "#ffffff",
-    fontSize: 20,
-    fontWeight: "800",
-    marginBottom: 4,
-  },
-  footerLogoSub: {
-    color: "#64748b",
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 1.2,
-    marginBottom: 16,
-  },
-  queryButton: {
-    backgroundColor: "#38bdf8",
-    paddingVertical: 8,
-    paddingHorizontal: 24,
-    borderRadius: 20,
+
     alignItems: "center",
+
+    paddingHorizontal: 30,
+
+    paddingVertical: 24,
+
   },
-  queryButtonText: {
-    color: "#0b1329",
+
+
+  logoArea: {
+
+    flexDirection: "column",
+
+  },
+
+
+  logo: {
+
+    fontSize: 24,
+
+    fontWeight: "900",
+
+    color: "#17252A",
+
+  },
+
+
+  slogan: {
+
+    fontSize: 10,
+
+    color: "#5F7A82",
+
+    marginTop: 2,
+
+  },
+
+
+  navLinks: {
+
+    flexDirection: "row",
+
+    gap: 35,
+
+  },
+
+
+  navText: {
+
+    color: "#3B4A50",
+
+    fontSize: 14,
+
+    fontWeight: "600",
+
+  },
+
+
+  topLogin: {
+
+    backgroundColor: "#3BB9D5",
+
+    paddingVertical: 11,
+
+    paddingHorizontal: 25,
+
+    borderRadius: 22,
+
+  },
+
+
+  topLoginText: {
+
+    color: "#FFFFFF",
+
     fontWeight: "700",
-    fontSize: 13,
+
   },
+
+
+
+  /* ================================= */
+  /* HERO                              */
+  /* ================================= */
+
+  hero: {
+
+    width: "100%",
+
+    maxWidth: 1200,
+
+    alignSelf: "center",
+
+    flexDirection: "row",
+
+    alignItems: "center",
+
+    minHeight: 560,
+
+    paddingHorizontal: 30,
+
+    paddingVertical: 45,
+
+  },
+
+
+  heroMobile: {
+
+    flexDirection: "column",
+
+  },
+
+
+  leftSide: {
+
+    width: "52%",
+
+  },
+
+
+  fullWidth: {
+
+    width: "100%",
+
+  },
+
+
+  heroTitle: {
+
+    fontSize: 58,
+
+    lineHeight: 66,
+
+    fontWeight: "900",
+
+    color: "#111827",
+
+  },
+
+
+  highlight: {
+
+    color: "#35B8D5",
+
+  },
+
+
+  heroText: {
+
+    marginTop: 20,
+
+    maxWidth: 470,
+
+    color: "#596A70",
+
+    fontSize: 17,
+
+    lineHeight: 26,
+
+  },
+
+
+
+  /* ================================= */
+  /* BUTTONS                           */
+  /* ================================= */
+
+  buttons: {
+
+    flexDirection: "row",
+
+    marginTop: 32,
+
+  },
+
+
+  registerButton: {
+
+    backgroundColor: "#111111",
+
+    paddingVertical: 15,
+
+    paddingHorizontal: 28,
+
+    borderRadius: 10,
+
+    marginRight: 12,
+
+  },
+
+
+  registerText: {
+
+    color: "#FFFFFF",
+
+    fontWeight: "700",
+
+    fontSize: 14,
+
+  },
+
+
+  loginButton: {
+
+    backgroundColor: "#3BB9D5",
+
+    paddingVertical: 15,
+
+    paddingHorizontal: 32,
+
+    borderRadius: 10,
+
+  },
+
+
+  loginText: {
+
+    color: "#FFFFFF",
+
+    fontWeight: "700",
+
+    fontSize: 14,
+
+  },
+
+
+
+  /* ================================= */
+  /* RIGHT SIDE PHOTO                  */
+  /* ================================= */
+
+  rightSide: {
+
+    width: "48%",
+
+    justifyContent: "center",
+
+    alignItems: "center",
+
+    position: "relative",
+
+  },
+
+
+  rightMobile: {
+
+    width: "100%",
+
+    marginTop: 55,
+
+  },
+
+
+  mainCircle: {
+
+    width: 370,
+
+    height: 370,
+
+    borderRadius: 185,
+
+    backgroundColor: "#A9E3EC",
+
+    overflow: "hidden",
+
+    borderWidth: 14,
+
+    borderColor: "#B9EBF2",
+
+  },
+
+
+  doctorImage: {
+
+    width: "100%",
+
+    height: "100%",
+
+  },
+
+
+  photoLabel: {
+
+    position: "absolute",
+
+    bottom: 15,
+
+    right: 35,
+
+    backgroundColor: "#FFFFFF",
+
+    paddingVertical: 14,
+
+    paddingHorizontal: 20,
+
+    borderRadius: 12,
+
+    shadowColor: "#000",
+
+    shadowOpacity: 0.12,
+
+    shadowRadius: 12,
+
+    shadowOffset: {
+
+      width: 0,
+
+      height: 5,
+
+    },
+
+    elevation: 5,
+
+  },
+
+
+  photoLabelTitle: {
+
+    fontSize: 15,
+
+    fontWeight: "800",
+
+    color: "#17252A",
+
+  },
+
+
+  photoLabelText: {
+
+    color: "#718096",
+
+    fontSize: 10,
+
+    marginTop: 3,
+
+  },
+
+
+
+  /* ================================= */
+  /* ABOUT                             */
+  /* ================================= */
+
+  aboutSection: {
+
+    backgroundColor: "#FFFFFF",
+
+    paddingVertical: 75,
+
+    paddingHorizontal: 30,
+
+  },
+
+
+  aboutContent: {
+
+    width: "100%",
+
+    maxWidth: 1050,
+
+    alignSelf: "center",
+
+    flexDirection: "row",
+
+    justifyContent: "space-between",
+
+  },
+
+
+  aboutMobile: {
+
+    flexDirection: "column",
+
+  },
+
+
+  aboutTitleArea: {
+
+    flex: 1,
+
+    paddingRight: 30,
+
+  },
+
+
+  smallHeading: {
+
+    color: "#35B8D5",
+
+    fontSize: 12,
+
+    fontWeight: "800",
+
+    letterSpacing: 1.4,
+
+    marginBottom: 12,
+
+  },
+
+
+  aboutTitle: {
+
+    color: "#17252A",
+
+    fontSize: 30,
+
+    fontWeight: "800",
+
+    lineHeight: 39,
+
+  },
+
+
+  aboutTextArea: {
+
+    flex: 1,
+
+    justifyContent: "center",
+
+  },
+
+
+  aboutText: {
+
+    color: "#52606D",
+
+    fontSize: 15,
+
+    lineHeight: 24,
+
+  },
+
+
+  aboutTextSecond: {
+
+    color: "#52606D",
+
+    fontSize: 15,
+
+    lineHeight: 24,
+
+    marginTop: 15,
+
+  },
+
+
+
+  /* ================================= */
+  /* CONTACT                           */
+  /* ================================= */
+
+  contactSection: {
+
+    backgroundColor: "#17333A",
+
+    paddingTop: 55,
+
+    paddingBottom: 25,
+
+    paddingHorizontal: 30,
+
+  },
+
+
+  contactHeader: {
+
+    alignItems: "center",
+
+    marginBottom: 35,
+
+  },
+
+
+  contactLogo: {
+
+    color: "#FFFFFF",
+
+    fontSize: 26,
+
+    fontWeight: "900",
+
+  },
+
+
+  contactSlogan: {
+
+    color: "#8ECBD6",
+
+    fontSize: 12,
+
+    marginTop: 4,
+
+  },
+
+
+  contactItems: {
+
+    width: "100%",
+
+    maxWidth: 900,
+
+    alignSelf: "center",
+
+    flexDirection: "row",
+
+    justifyContent: "space-between",
+
+  },
+
+
+  contactItemsMobile: {
+
+    flexDirection: "column",
+
+  },
+
+
+  contactItem: {
+
+    flexDirection: "row",
+
+    alignItems: "center",
+
+    marginVertical: 12,
+
+    minWidth: 200,
+
+  },
+
+
+  contactIcon: {
+
+    width: 42,
+
+    height: 42,
+
+    borderRadius: 21,
+
+    backgroundColor: "#35B8D5",
+
+    color: "#FFFFFF",
+
+    textAlign: "center",
+
+    lineHeight: 42,
+
+    fontSize: 19,
+
+    marginRight: 12,
+
+  },
+
+
+  contactLabel: {
+
+    color: "#8EAAB0",
+
+    fontSize: 10,
+
+    textTransform: "uppercase",
+
+    letterSpacing: 1,
+
+  },
+
+
+  contactValue: {
+
+    color: "#FFFFFF",
+
+    fontSize: 13,
+
+    fontWeight: "600",
+
+    marginTop: 3,
+
+  },
+
+
+  footerLine: {
+
+    height: 1,
+
+    backgroundColor: "#36545B",
+
+    width: "100%",
+
+    maxWidth: 1050,
+
+    alignSelf: "center",
+
+    marginTop: 40,
+
+  },
+
+
+  copyright: {
+
+    color: "#789298",
+
+    fontSize: 10,
+
+    textAlign: "center",
+
+    marginTop: 20,
+
+  },
+
 });
