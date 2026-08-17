@@ -1899,105 +1899,12 @@ app.post(
 );
 
 
-app.get(
-  "/api/blood-donors/search",
-  authenticateUser,
-  async (req, res) => {
-    const bloodGroup = String(req.query.bloodGroup || "")
-      .trim()
-      .toUpperCase();
-
-    const allowedGroups = new Set([
-      "A+", "A-", "B+", "B-",
-      "AB+", "AB-", "O+", "O-",
-    ]);
-
-    if (!allowedGroups.has(bloodGroup)) {
-      return res.status(400).json({
-        error: "Please select a valid blood group.",
-      });
-    }
-
-    const area = String(req.query.area || "")
-      .trim()
-      .slice(0, 120);
-
-    try {
-      let sql = `
-        SELECT
-          id,
-          donor_name,
-          blood_group_normalized,
-          phone_normalized,
-          phone_raw,
-          location_text,
-          source_name,
-          source_url
-        FROM public_blood_donors
-        WHERE blood_group_normalized = ?
-      `;
-
-      const values = [bloodGroup];
-
-      if (area) {
-        const tokens = area
-          .split(/[,;]+/)
-          .map((item) => item.trim())
-          .filter((item) => item.length >= 2)
-          .slice(0, 4);
-
-        if (tokens.length > 0) {
-          sql += ` AND (${tokens
-            .map(() => "location_text LIKE ?")
-            .join(" OR ")})`;
-
-          for (const token of tokens) {
-            values.push(`%${token}%`);
-          }
-        }
-      }
-
-      sql += `
-        ORDER BY
-          CASE WHEN phone_normalized IS NULL THEN 1 ELSE 0 END,
-          donor_name ASC
-        LIMIT 250
-      `;
-
-      const [rows] = await db.execute(sql, values);
-
-      return res.status(200).json({
-        bloodGroup,
-        area,
-        count: rows.length,
-        results: rows.map((row) => ({
-          id: Number(row.id),
-          name: row.donor_name,
-          bloodGroup: row.blood_group_normalized,
-          phone: row.phone_normalized || row.phone_raw || null,
-          location: row.location_text || "",
-          sourceName: row.source_name,
-          sourceUrl: row.source_url,
-          availability: "CALL_TO_CONFIRM",
-        })),
-      });
-    } catch (error) {
-      console.error("Blood donor search error:", error);
-
-      if (error && error.code === "ER_NO_SUCH_TABLE") {
-        return res.status(503).json({
-          error:
-            "The donor database has not been imported. Import backend/public_blood_donors.sql first.",
-        });
-      }
-
-      return res.status(500).json({
-        error: "Could not search the donor directory.",
-      });
-    }
-  }
+app.use(
+  "/api/blood-donors",
+  require("./routes/blood-donors")(db, authenticateUser)
 );
 
+app.use("/api/doctors", require("./routes/doctors")(db, authenticateUser));
 app.use("/api/family", require("./routes/family"));
 
 const startServer = async () => {
